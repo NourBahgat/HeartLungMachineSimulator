@@ -1,0 +1,155 @@
+.app {
+  display: flex;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Left container for the SVG */
+.svg-container {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f8f9fa;
+}
+
+.circuit-svg {
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Right container for controls */
+.controls-container {
+  width: 500px;
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-left: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.controls-container h2 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.control-section {
+  padding: 15px;
+  background-color: white;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.control-section h3 {
+  margin: 0 0 10px 0;
+  color: #555;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.control-section p {
+  margin: 0;
+  color: #666;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Simulation button styles */
+.simulation-button {
+  padding: 12px 20px;
+  font-size: 16px;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 10%;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.simulation-button.start {
+  background-color: #28a745;
+}
+
+.simulation-button.stop {
+  background-color: #dc3545;
+}
+
+.simulation-button.start:hover {
+  background-color: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.simulation-button.stop:hover {
+  background-color: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.simulation-button:active {
+  transform: translateY(0);
+}
+/* Add to src/App.css */
+.parameter-display {
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.parameter-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.parameter-item:last-child {
+  margin-bottom: 0;
+}
+
+.parameter-label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.parameter-value {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 60px;
+  text-align: center;
+}
+
+.parameter-value.true {
+  color: #dc3545;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.parameter-value.false {
+  color: #28a745;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+}
