@@ -6,19 +6,37 @@ function App() {
   const particlesGroupRef = useRef(null);
   const [running, setRunning] = useState(false);
 
-  // particles: all particles (main + decorative + arterial)
+  // user-controlled parameters
+  const [flowRate, setFlowRate] = useState(5);     // particles/sec (blood flow)
+  const [pressure, setPressure] = useState(0.3);   // fraction of path per sec (blood pressure / velocity)
+  const [oxygenation, setOxygenation] = useState(100); // % SaO2 (88–100)
+
+  // air bubble alarm state
+  const [airBubbleAlarm, setAirBubbleAlarm] = useState(false);
+
+  // particles: all particles (main + decorative + arterial + bubble)
   const particlesRef = useRef([]);
   const lastTimeRef = useRef(null);
 
-  // separate accumulators so all venous lines have same createCircles rate
-  const createCirclesMainAccRef = useRef(0);        // for venousLine1 (real flow)
-  const createCirclesDecorAccRef = useRef(0);       // for venousLine2 & venousLine3 (visual only)
+  // separate accumulators so all venous lines have same spawn rate
+  const createCirclesMainAccRef = useRef(0);   // venousLine1 (real flow)
+  const createCirclesDecorAccRef = useRef(0);  // venousLine2 & 3 (visual only)
 
   const rafRef = useRef(null);
 
-  const createCirclesRateMain = 5;                  // particles/sec on venousLine1
-  const createCirclesRateDecor = createCirclesRateMain;     // particles/sec distributed over venousLine2 & 3
-  const speed = 0.3;                        // fraction of path per second for all particles
+  // map oxygenation 88–100% to dark → bright red
+  function getArterialColorFromOxygenation(o2) {
+    const minO2 = 88;
+    const maxO2 = 100;
+    const t = Math.min(
+      1,
+      Math.max(0, (o2 - minO2) / (maxO2 - minO2))
+    ); // 0 at 88%, 1 at 100%
+
+    // dark red ~ rgb(120, 0, 0), bright red ~ rgb(255, 0, 0)
+    const r = Math.round(120 + (255 - 120) * t);
+    return `rgb(${r}, 0, 0)`;
+  }
 
   useEffect(() => {
     if (!running) return;
@@ -31,7 +49,14 @@ function App() {
     const venousLine2Path = svg.getElementById("venousLine2");
     const venousLine3Path = svg.getElementById("venousLine3");
     const arterialLinePath = svg.getElementById("arterialLine");
-    if (!venousLine1Path || !venousLine2Path || !venousLine3Path || !arterialLinePath)
+    const bubbleSensorRect = svg.getElementById("bubbleSensor");
+    if (
+      !venousLine1Path ||
+      !venousLine2Path ||
+      !venousLine3Path ||
+      !arterialLinePath ||
+      !bubbleSensorRect
+    )
       return;
 
     const venousLine1Len = venousLine1Path.getTotalLength();
@@ -39,7 +64,22 @@ function App() {
     const venousLine3Len = venousLine3Path.getTotalLength();
     const arterialLineLen = arterialLinePath.getTotalLength();
 
-    // --- createCircles FUNCTIONS ---
+    // bubble sensor position (center of its rect)
+    const sensorX =
+      parseFloat(bubbleSensorRect.getAttribute("x")) +
+      parseFloat(bubbleSensorRect.getAttribute("width")) / 2;
+    const sensorY =
+      parseFloat(bubbleSensorRect.getAttribute("y")) +
+      parseFloat(bubbleSensorRect.getAttribute("height")) / 2;
+    const sensorRadius = 3; // hit radius around sensor
+
+    // use current slider values
+    const createCirclesRateMain = flowRate;        // blood flow rate
+    const createCirclesRateDecor = flowRate;       // same rate for decorative lines
+    const speed = pressure;                        // blood pressure → particle speed
+    const arterialColor = getArterialColorFromOxygenation(oxygenation);
+
+    // --- SPAWN FUNCTIONS ---
 
     // Real venous line (feeds oxygenator / arterial)
     function createCirclesBlueMain() {
@@ -55,6 +95,7 @@ function App() {
         elem: circle,
         segment: "venousMain1", // special type: real venous
         t: 0,
+        isBubble: false,
       });
     }
 
@@ -72,6 +113,7 @@ function App() {
         elem: circle,
         segment: "venousDecor2",
         t: 0,
+        isBubble: false,
       });
     }
 
@@ -89,6 +131,7 @@ function App() {
         elem: circle,
         segment: "venousDecor3",
         t: 0,
+        isBubble: false,
       });
     }
 
@@ -105,7 +148,14 @@ function App() {
           // venousLine1 finished -> go to arterial
           p.segment = "arterialLine";
           p.t = 0;
-          p.elem.setAttribute("fill", "red");
+
+          if (p.isBubble) {
+            // keep bubble white
+            p.elem.setAttribute("fill", "white");
+          } else {
+            // normal arterial blood uses oxygenation-dependent color
+            p.elem.setAttribute("fill", arterialColor);
+          }
         } else if (p.segment === "arterialLine" && p.t >= 1) {
           // arterial finished -> remove
           p.elem.remove();
@@ -143,6 +193,16 @@ function App() {
         const pt = path.getPointAtLength(p.t * len);
         p.elem.setAttribute("cx", pt.x);
         p.elem.setAttribute("cy", pt.y);
+
+        // bubble detection: if this particle is a bubble on the arterial line
+        if (p.isBubble && p.segment === "arterialLine") {
+          const dx = pt.x - sensorX;
+          const dy = pt.y - sensorY;
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 <= sensorRadius * sensorRadius) {
+            setAirBubbleAlarm(true);
+          }
+        }
       }
     }
 
@@ -155,14 +215,14 @@ function App() {
       const dt = (timestamp - lastTimeRef.current) / 1000;
       lastTimeRef.current = timestamp;
 
-      // createCircles real venous particles on line 1
+      // spawn real venous particles on line 1
       createCirclesMainAccRef.current += createCirclesRateMain * dt;
       while (createCirclesMainAccRef.current >= 1) {
         createCirclesMainAccRef.current -= 1;
         createCirclesBlueMain();
       }
 
-      // createCircles decorative venous particles on lines 2 & 3
+      // spawn decorative venous particles on lines 2 & 3
       createCirclesDecorAccRef.current += createCirclesRateDecor * dt;
       while (createCirclesDecorAccRef.current >= 1) {
         createCirclesDecorAccRef.current -= 1;
@@ -184,7 +244,7 @@ function App() {
     // start animation
     rafRef.current = requestAnimationFrame(loop);
 
-    // cleanup when stopping
+    // cleanup when stopping or when sliders change
     return () => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
@@ -196,7 +256,36 @@ function App() {
         particlesGroupRef.current.innerHTML = "";
       }
     };
-  }, [running]);
+  }, [running, flowRate, pressure, oxygenation]);
+
+  // create a single air bubble on venous main line that will travel into arterial
+  const simulateAirBubble = () => {
+    if (!running) return; // only simulate while running
+    const svg = svgRef.current;
+    const particlesGroup = particlesGroupRef.current;
+    if (!svg || !particlesGroup) return;
+    const venousLine1Path = svg.getElementById("venousLine1");
+    if (!venousLine1Path) return;
+
+    const circle = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "circle"
+    );
+    circle.setAttribute("r", 4);
+    circle.setAttribute("fill", "white");
+    particlesGroup.appendChild(circle);
+
+    // place it at the start of venous line 1
+    particlesRef.current.push({
+      elem: circle,
+      segment: "venousMain1",
+      t: 0,
+      isBubble: true,
+    });
+
+    // reset alarm so this bubble can trigger it
+    setAirBubbleAlarm(false);
+  };
 
   return (
     <div className="app">
@@ -252,7 +341,7 @@ function App() {
             />
           </defs>
 
-          {/* background image from public/HeartLung.png */}
+          {/* background image from public/HeartLungPathsWithSensors.png */}
           <g id="layer1" transform="translate(359.6488,31.018311)">
             <image
               href="/HeartLungPathsWithSensors.png"
@@ -333,7 +422,7 @@ function App() {
               d="m 6.1474773,41.495471 -0.3842174,137.165589 -0.7684346,9.60543 5.3790427,5.37904 v 0 l 8.836998,-6.14747 -2.689521,-9.60544 1.152652,-124.870629 44.953428,-0.384217 9.98965,4.610608"
               id="salineLine"
             />
-            {/* New sensor / label rectangles */}
+            {/* sensor / label rectangles and texts */}
             <rect
               style={{
                 fill: "#ff9955",
@@ -542,10 +631,11 @@ function App() {
       {/* Right container for controls */}
       <div className="controls-container">
         <h2>Simulation Controls</h2>
-        
+
+        {/* Start/Stop Simulation button at the TOP of right container */}
         <div className="control-section">
           <button
-            className={`simulation-button ${running ? 'stop' : 'start'}`}
+            className={`start-stop-button ${running ? "stop" : "start"}`}
             onClick={() => {
               setRunning((prev) => !prev);
             }}
@@ -554,16 +644,81 @@ function App() {
           </button>
         </div>
 
-        {/* Placeholder for future parameter display */}
+        {/* Alarms container */}
         <div className="control-section">
-          <h3>Parameters</h3>
-          <p>Parameter display</p>
+          <h3>Alarms</h3>
+          {airBubbleAlarm ? (
+            <p style={{ color: "red", fontWeight: "bold" }}>
+              AIR BUBBLE DETECTED!
+            </p>
+          ) : (
+            <p>No alarms</p>
+          )}
         </div>
 
-        {/* Placeholder for future sliders */}
+        {/* Parameters display */}
+        <div className="control-section">
+          <h3>Parameters</h3>
+          <p>Blood flow rate: {flowRate.toFixed(0)} particles/sec</p>
+          <p>Blood pressure (speed): {pressure.toFixed(2)} path/s</p>
+          <p>Arterial oxygenation: {oxygenation.toFixed(0)}%</p>
+        </div>
+
+        {/* Controls section: sliders + bubble button */}
         <div className="control-section">
           <h3>Controls</h3>
-          <p>Sliders and bubble simulator</p>
+
+          <label className="control-label">
+            <div>Blood flow rate (particles/sec)</div>
+            <input
+              type="range"
+              min="1"
+              max="20"
+              step="1"
+              value={flowRate}
+              onChange={(e) => setFlowRate(Number(e.target.value))}
+            />
+          </label>
+
+          <label className="control-label">
+            <div>Blood pressure (speed)</div>
+            <input
+              type="range"
+              min="0.1"
+              max="1.0"
+              step="0.05"
+              value={pressure}
+              onChange={(e) => setPressure(Number(e.target.value))}
+            />
+          </label>
+
+          <label className="control-label">
+            <div>Blood oxygenation (% SaO₂)</div>
+            <input
+              type="range"
+              min="88"
+              max="100"
+              step="1"
+              value={oxygenation}
+              onChange={(e) => setOxygenation(Number(e.target.value))}
+            />
+          </label>
+
+          {/* Separate bubble simulation button INSIDE Controls */}
+       <label className="simulate-bubble-toggle">
+  <input
+    type="checkbox"
+    onChange={(e) => {
+      if (e.target.checked) {
+        simulateAirBubble();
+        // auto-untick after triggering once
+        e.target.checked = false;
+      }
+    }}
+  />
+  <span>Simulate air bubble</span>
+</label>
+
         </div>
       </div>
     </div>
